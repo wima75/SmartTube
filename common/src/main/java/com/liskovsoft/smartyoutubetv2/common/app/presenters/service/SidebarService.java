@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import com.liskovsoft.smartyoutubetv2.common.prio.PrioService;
 import java.util.Map;
 
 public class SidebarService implements ProfileChangeListener {
@@ -236,6 +237,7 @@ public class SidebarService implements ProfileChangeListener {
     }
 
     private void initSections() {
+        mDefaultSections.put(R.string.prio_section, PrioService.TYPE_PRIO); // Fork
         mDefaultSections.put(R.string.header_notifications, MediaGroup.TYPE_NOTIFICATIONS);
         mDefaultSections.put(R.string.header_home, MediaGroup.TYPE_HOME);
         mDefaultSections.put(R.string.header_shorts, MediaGroup.TYPE_SHORTS);

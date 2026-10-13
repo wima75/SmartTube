@@ -167,6 +167,16 @@ android {
             applicationId "org.smarttube.stable"
             targetSdkVersion project.properties.compileSdkVersion
         }
+        // Fork: SmartTube Prio (installs side by side with the official app)
+        stprio {
+            applicationId "org.smarttube.prio"
+            targetSdkVersion project.properties.compileSdkVersion
+            // Fork build counter (-PprioBuild=N, < 10000). Final versionCode = upstream versionCode * 10000 + N
+            versionCode defaultConfig.versionCode * 10000 + (project.findProperty("prioBuild") ?: "0").toString().toInteger()
+            versionNameSuffix "-prio." + (project.findProperty("prioBuild") ?: "0")
+            // Library modules have no stprio flavor
+            matchingFallbacks = ['ststable']
+        }
         stfdroid {
             applicationId "app.smarttube.fdroid"
             minSdkVersion 21

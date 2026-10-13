@@ -40,6 +40,7 @@ import io.reactivex.disposables.Disposable;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.List;
+import com.liskovsoft.smartyoutubetv2.common.prio.PrioMenu;
 import java.util.Map;
 
 public class VideoMenuPresenter extends BaseMenuPresenter {
@@ -182,6 +183,7 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
         }
 
         appendReturnToBackgroundVideoButton();
+        PrioMenu.appendMenuItems(getContext(), mDialogPresenter, mVideo, mCallback); // Fork
 
         for (Long menuItem : MainUIData.instance(getContext()).getMenuItemsOrdered()) {
             MenuAction menuAction = mMenuMapping.get(menuItem);
@@ -203,6 +205,7 @@ public class VideoMenuPresenter extends BaseMenuPresenter {
         }
 
         appendReturnToBackgroundVideoButton();
+        PrioMenu.appendMenuItems(getContext(), mDialogPresenter, mVideo, mCallback); // Fork
 
         for (Long menuItem : MainUIData.instance(getContext()).getMenuItemsOrdered()) {
             MenuAction menuAction = mMenuMapping.get(menuItem);

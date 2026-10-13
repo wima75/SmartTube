@@ -1,0 +1,135 @@
+# Fork: builds "SmartTube Prio" (flavor stprio) and publishes it as release "latest".
+# The app's update checker reads smarttube_prio.json from that release.
+#
+# Required secrets (same names as the upstream CI):
+#   SIGNING_KEY (base64 of the keystore), KEY_STORE_PASSWORD, ALIAS, KEY_PASSWORD
+# Optional secret:
+#   SYNC_TOKEN - personal access token (scopes: repo, workflow). Needed to push upstream merges that touch .github/workflows.
+name: Prio Release
+
+on:
+  push:
+    branches: [ "master" ]
+  schedule:
+    - cron: "0 3 * * *" # daily: merge upstream and release if something changed
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prio-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Merge upstream
+        id: sync
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/yuliskov/SmartTube.git
+          git fetch upstream master
+          before=$(git rev-parse HEAD)
+          # Fails on conflicts -> resolve them locally and push
+          git merge --no-edit upstream/master
+          git submodule update --init --recursive
+          if [ "$before" = "$(git rev-parse HEAD)" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            git push origin HEAD:master
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if release is needed
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ steps.sync.outputs.changed }}" != "true" ]; then
+            echo "release=false" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.event.head_commit.author.name }}" = "github-actions[bot]" ]; then
+            echo "release=false" >> $GITHUB_OUTPUT # upstream merge, already released by the sync run
+          else
+            echo "release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK 17
+        if: steps.check.outputs.release == 'true'
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Configure Build Signing
+        if: steps.check.outputs.release == 'true'
+        run: |
+          if [ -z "${{ secrets.SIGNING_KEY }}" ]; then
+            echo "::error::Secret SIGNING_KEY is missing. Updates need the same key for every build."
+            exit 1
+          fi
+          echo "storePassword=${{ secrets.KEY_STORE_PASSWORD }}" > keystore.properties
+          echo "keyAlias=${{ secrets.ALIAS }}" >> keystore.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+          echo "storeFile=${{ github.workspace }}/key.jks" >> keystore.properties
+          echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > ${{ github.workspace }}/key.jks
+
+      - name: Build with Gradle
+        if: steps.check.outputs.release == 'true'
+        run: |
+          chmod +x gradlew
+          ./gradlew clean assembleStprioRelease -PprioBuild=${{ github.run_number }}
+
+      - name: Create update manifest
+        if: steps.check.outputs.release == 'true'
+        id: manifest
+        run: |
+          dir=smarttubetv/build/outputs/apk/stprio/release
+          up_code=$(grep -m1 "versionCode" smarttubetv/build.gradle | awk '{print $2}')
+          up_name=$(grep -m1 "versionName" smarttubetv/build.gradle | awk -F'"' '{print $2}')
+          code=$((up_code * 10000 + ${{ github.run_number }}))
+          name="${up_name}-prio.${{ github.run_number }}" # same as versionName in build.gradle
+          url="https://github.com/${{ github.repository }}/releases/download/latest"
+
+          mkdir -p out
+          cp $dir/*_armeabi-v7a.apk out/smarttube_prio_armeabi-v7a.apk
+          cp $dir/*_arm64-v8a.apk out/smarttube_prio_arm64-v8a.apk
+          cp $dir/*_x86.apk out/smarttube_prio_x86.apk
+          cp $dir/*_universal.apk out/smarttube_prio_universal.apk
+
+          changelog=$(git log -1 --format=%s | sed 's/\\/\\\\/g; s/"/\\"/g')
+          cat > out/smarttube_prio.json <<EOF
+          {
+              "package": {
+                  "downloadUrlList": ["$url/smarttube_prio_armeabi-v7a.apk"],
+                  "downloadUrlList_arm64-v8a": ["$url/smarttube_prio_arm64-v8a.apk"],
+                  "downloadUrlList_x86": ["$url/smarttube_prio_x86.apk"]
+              },
+              "$name": {
+                  "versionCode": $code,
+                  "changelog": ["$changelog"]
+              }
+          }
+          EOF
+          cat out/smarttube_prio.json
+          echo "name=$name" >> $GITHUB_OUTPUT
+
+      - name: Publish release "latest"
+        if: steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest out/* \
+            --target "$(git rev-parse HEAD)" \
+            --title "SmartTube Prio ${{ steps.manifest.outputs.name }}" \
+            --notes "Automatic build of the fork (flavor stprio). First install: smarttube_prio_arm64-v8a.apk (e.g. Nvidia Shield). Later updates come through the app."

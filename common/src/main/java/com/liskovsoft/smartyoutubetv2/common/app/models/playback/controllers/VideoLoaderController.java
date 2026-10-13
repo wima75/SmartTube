@@ -27,6 +27,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 
 import io.reactivex.disposables.Disposable;
+import com.liskovsoft.smartyoutubetv2.common.prio.PrioService;
 
 public class VideoLoaderController extends BasePlayerController {
     private static final String TAG = VideoLoaderController.class.getSimpleName();
@@ -413,6 +414,13 @@ public class VideoLoaderController extends BasePlayerController {
 
         if (isEmbedPlayer()) {
             playbackMode = PlayerConstants.PLAYBACK_MODE_CLOSE;
+        }
+
+        // Fork: continue with the next prio video regardless of the playback mode (like the queue)
+        if (!isEmbedPlayer() && playbackMode != PlayerConstants.PLAYBACK_MODE_ONE && !video.finishOnEnded
+                && PrioService.instance(getContext()).getNext(video) != null) {
+            loadNext();
+            return;
         }
 
         switch (playbackMode) {

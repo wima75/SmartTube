@@ -25,6 +25,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMenuPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.views.PlaybackView;
 import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem;
+import com.liskovsoft.smartyoutubetv2.common.prio.PrioController;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils.ChainProcessor;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils.Processor;
@@ -56,6 +57,7 @@ public class PlaybackPresenter extends BasePresenter<PlaybackView> implements Pl
 
         // NOTE: position matters!!!
         mEventListeners.add(new VideoStateController());
+        mEventListeners.add(new PrioController()); // Fork: before VideoLoaderController
         mEventListeners.add(new SuggestionsController());
         mEventListeners.add(new VideoLoaderController());
         mEventListeners.add(new ErrorFixerController());

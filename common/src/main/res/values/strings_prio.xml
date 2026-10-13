@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fork: prio playback -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="prio_section">Prio</string>
+    <string name="prio_manage_channels">Manage prio channels</string>
+    <string name="prio_add_channel">Add to prio channels</string>
+    <string name="prio_remove_channel">Remove from prio channels</string>
+    <string name="prio_channel_added">%s added to prio channels. New videos will appear in Prio.</string>
+    <string name="prio_channel_removed">Removed from prio channels</string>
+    <string name="prio_mark_watched">Prio: mark as watched</string>
+    <string name="prio_mark_unwatched">Prio: mark as unwatched</string>
+    <string name="prio_no_channels">No prio channels yet. Add channels via the context menu of a video or channel.</string>
+    <string name="prio_move_top">Move to top</string>
+    <string name="prio_move_up">Move up</string>
+    <string name="prio_move_down">Move down</string>
+    <string name="prio_move_bottom">Move to bottom</string>
+    <string name="prio_refresh">Check for new videos</string>
+    <string name="prio_refreshing">Checking for new videos…</string>
+</resources>

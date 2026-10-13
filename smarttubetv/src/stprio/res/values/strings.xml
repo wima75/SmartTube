@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string translatable="false" name="app_name"><![CDATA[SmartTube Prio]]></string>
+    <string translatable="false" name="browse_title"><![CDATA[SmartTube Prio]]></string>
+    <!-- Overrides of leanbackassistant (depend on applicationId) -->
+    <string translatable="false" name="search_label">SmartTube Prio</string>
+    <string translatable="false" name="settings_description">SmartTube Prio Videos</string>
+    <string translatable="false" name="search_authority">org.smarttube.prio</string>
+</resources>

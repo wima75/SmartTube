@@ -35,6 +35,7 @@ import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
 
 import java.util.ArrayList;
+import com.liskovsoft.smartyoutubetv2.common.prio.PrioService;
 import java.util.List;
 
 public class SuggestionsController extends BasePlayerController {
@@ -280,9 +281,14 @@ public class SuggestionsController extends BasePlayerController {
         Video result = null;
         Video next = Playlist.instance().getNext();
 
+        // Fork: prio playback (after the user's queue)
+        Video prioNext = next == null ? PrioService.instance(getContext()).getNext(getVideo()) : null;
+
         if (next != null) {
             next.fromQueue = true;
             result = next;
+        } else if (prioNext != null) {
+            result = prioNext;
         } else if (!getVideo().isShuffled &&
                 Helpers.startsWith(getVideo().getPlaylistId(), "RD") &&
                 getVideo().hasNextPlaylist()) {

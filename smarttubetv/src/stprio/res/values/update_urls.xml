@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overrides common/src/ststable: updates from the fork's own releases -->
+    <string-array name="update_urls">
+        <item>https://github.com/wima75/SmartTube/releases/download/latest/smarttube_prio.json</item>
+    </string-array>
+</resources>

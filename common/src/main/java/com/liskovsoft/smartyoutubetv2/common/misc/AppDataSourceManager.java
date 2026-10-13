@@ -22,6 +22,7 @@ import com.liskovsoft.smartyoutubetv2.common.exoplayer.selector.FormatItem.Video
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
 import java.util.ArrayList;
+import com.liskovsoft.smartyoutubetv2.common.prio.PrioMenu;
 import java.util.List;
 
 public class AppDataSourceManager {
@@ -67,6 +68,8 @@ public class AppDataSourceManager {
                 context.getString(R.string.dearrow_provider), () -> DeArrowSettingsPresenter.instance(context).show(), R.drawable.settings_dearrow));
         settingItems.add(new SettingsItem(
                 context.getString(R.string.app_backup_restore), () -> BackupSettingsPresenter.instance(context).show(), R.drawable.settings_backup));
+        settingItems.add(new SettingsItem( // Fork
+                context.getString(R.string.prio_manage_channels), () -> PrioMenu.showManageDialog(context), R.drawable.settings_block));
 
         if (Helpers.equalsAny(context.getPackageName(), Utils.KNOWN_PACKAGES)) {
             settingItems.add(new SettingsItem(

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fork: prio playback -->
+<resources>
+    <string name="prio_section">Prio</string>
+    <string name="prio_manage_channels">Prio-Kanäle verwalten</string>
+    <string name="prio_add_channel">Zu Prio-Kanälen hinzufügen</string>
+    <string name="prio_remove_channel">Aus Prio-Kanälen entfernen</string>
+    <string name="prio_channel_added">%s zu Prio-Kanälen hinzugefügt. Neue Videos erscheinen unter Prio.</string>
+    <string name="prio_channel_removed">Aus Prio-Kanälen entfernt</string>
+    <string name="prio_mark_watched">Prio: als gesehen markieren</string>
+    <string name="prio_mark_unwatched">Prio: als ungesehen markieren</string>
+    <string name="prio_no_channels">Noch keine Prio-Kanäle. Kanäle über das Kontextmenü eines Videos oder Kanals hinzufügen.</string>
+    <string name="prio_move_top">Ganz nach oben</string>
+    <string name="prio_move_up">Nach oben</string>
+    <string name="prio_move_down">Nach unten</string>
+    <string name="prio_move_bottom">Ganz nach unten</string>
+    <string name="prio_refresh">Nach neuen Videos suchen</string>
+    <string name="prio_refreshing">Suche nach neuen Videos…</string>
+</resources>
