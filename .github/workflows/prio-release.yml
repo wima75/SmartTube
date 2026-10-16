@@ -127,6 +127,7 @@ jobs:
         if: steps.check.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release delete latest --cleanup-tag --yes || true
           gh release create latest out/* \
