@@ -92,6 +92,8 @@ dependencies {
 
     implementation 'androidx.browser:browser:' + browserXVersion
 
+    implementation 'com.google.zxing:core:3.3.3' // Fork: QR code for the prio web editor (3.3.x supports old Android)
+
     implementation 'androidx.core:core-ktx:' + kotlinCoreXVersion
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:' + kotlinVersion
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:' + kotlinxVersion

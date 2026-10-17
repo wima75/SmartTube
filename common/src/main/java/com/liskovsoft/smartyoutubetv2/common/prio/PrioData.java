@@ -34,6 +34,10 @@ public class PrioData implements ProfileChangeListener {
     private final Runnable mPersistStateInt = this::persistStateInt;
 
     public static class Channel {
+        public static final int TIER_HIGH = 0;
+        public static final int TIER_NORMAL = 1;
+        public static final int TIER_LOW = 2;
+        public static final int[] TIERS = {TIER_HIGH, TIER_NORMAL, TIER_LOW};
         public final String channelId;
         public String name;
         public String cardImageUrl;
@@ -41,12 +45,17 @@ public class PrioData implements ProfileChangeListener {
          * false until the first fetch. The videos of the first fetch count as watched (only new videos are added).
          */
         public boolean initialized;
+        /**
+         * Playback order: higher tier first, inside a tier the oldest open video first
+         */
+        public int tier;
 
-        Channel(String channelId, String name, String cardImageUrl, boolean initialized) {
+        Channel(String channelId, String name, String cardImageUrl, boolean initialized, int tier) {
             this.channelId = channelId;
             this.name = name;
             this.cardImageUrl = cardImageUrl;
             this.initialized = initialized;
+            this.tier = tier;
         }
 
         static Channel fromString(String spec) {
@@ -56,13 +65,14 @@ public class PrioData implements ProfileChangeListener {
                 return null;
             }
 
-            return new Channel(Helpers.parseStr(split[0]), Helpers.parseStr(split[1]), Helpers.parseStr(split[2]), Helpers.parseBoolean(split, 3));
+            return new Channel(Helpers.parseStr(split[0]), Helpers.parseStr(split[1]), Helpers.parseStr(split[2]), Helpers.parseBoolean(split, 3),
+                    Helpers.parseInt(split, 4, TIER_NORMAL));
         }
 
         @NonNull
         @Override
         public String toString() {
-            return Helpers.mergeObj(channelId, name, cardImageUrl, initialized);
+            return Helpers.mergeObj(channelId, name, cardImageUrl, initialized, tier);
         }
     }
 
@@ -170,8 +180,71 @@ public class PrioData implements ProfileChangeListener {
             return;
         }
 
-        mChannels.add(new Channel(channelId, name, cardImageUrl, false));
+        mChannels.add(new Channel(channelId, name, cardImageUrl, false, Channel.TIER_NORMAL));
         persistState();
+    }
+
+    public void setTier(String channelId, int tier) {
+        Channel channel = getChannel(channelId);
+
+        if (channel != null && channel.tier != tier) {
+            channel.tier = tier;
+            persistState();
+        }
+    }
+
+    /**
+     * Place the channel next to the target channel and take over its tier
+     */
+    public void moveChannel(String channelId, String targetChannelId) {
+        int index = indexOf(channelId);
+        int targetIndex = indexOf(targetChannelId);
+
+        if (index == -1 || targetIndex == -1 || index == targetIndex) {
+            return;
+        }
+
+        Channel channel = mChannels.remove(index);
+        channel.tier = mChannels.get(indexOf(targetChannelId)).tier;
+        // Moving down: after the target, moving up: before the target
+        int newIndex = indexOf(targetChannelId) + (index < targetIndex ? 1 : 0);
+        mChannels.add(newIndex, channel);
+        persistState();
+    }
+
+    /**
+     * New order and tiers (e.g. from the web editor). Channels that are missing get removed.
+     */
+    public void setChannels(List<String> channelIds, Map<String, Integer> tiers) {
+        List<Channel> result = new ArrayList<>();
+
+        for (String channelId : channelIds) {
+            Channel channel = getChannel(channelId);
+
+            if (channel != null && !result.contains(channel)) {
+                Integer tier = tiers.get(channelId);
+                channel.tier = tier != null ? tier : channel.tier;
+                result.add(channel);
+            }
+        }
+
+        for (Channel channel : getChannels()) {
+            if (!result.contains(channel)) {
+                removeChannel(channel.channelId);
+            }
+        }
+
+        mChannels.clear();
+        mChannels.addAll(result);
+        persistState();
+    }
+
+    /**
+     * -1 if the channel isn't a prio channel
+     */
+    public int getTier(String channelId) {
+        Channel channel = getChannel(channelId);
+        return channel != null ? channel.tier : -1;
     }
 
     public void removeChannel(String channelId) {
@@ -186,17 +259,31 @@ public class PrioData implements ProfileChangeListener {
         persistState();
     }
 
-    public void moveChannel(String channelId, int newIndex) {
-        int index = indexOf(channelId);
+    /**
+     * Fill in a missing name (e.g. channel added from a card without author)
+     */
+    public void updateChannelInfo(String channelId, String name, String cardImageUrl) {
+        Channel channel = getChannel(channelId);
 
-        if (index == -1) {
+        if (channel == null) {
             return;
         }
 
-        Channel channel = mChannels.remove(index);
-        newIndex = Math.max(0, Math.min(newIndex, mChannels.size()));
-        mChannels.add(newIndex, channel);
-        persistState();
+        boolean changed = false;
+
+        if (name != null && !name.isEmpty() && (channel.name == null || channel.name.isEmpty() || channel.name.equals(channelId))) {
+            channel.name = name;
+            changed = true;
+        }
+
+        if (cardImageUrl != null && channel.cardImageUrl == null) {
+            channel.cardImageUrl = cardImageUrl;
+            changed = true;
+        }
+
+        if (changed) {
+            persistState();
+        }
     }
 
     public void setInitialized(Channel channel) {

@@ -5,6 +5,7 @@ import android.content.Context;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMenuPresenter.VideoMenuCallback;
@@ -13,6 +14,10 @@ import com.liskovsoft.smartyoutubetv2.common.prio.PrioData.Channel;
 import com.liskovsoft.smartyoutubetv2.common.prio.PrioData.Entry;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
+import com.liskovsoft.mediaserviceinterfaces.data.MediaItem;
+
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,6 +36,15 @@ public class PrioMenu {
 
         appendWatchedButton(context, dialog, service, video, callback);
         appendChannelButton(context, dialog, service, video);
+
+        Channel channel = service.getData().getChannel(video.channelId);
+        if (channel != null) {
+            dialog.appendSingleButton(UiOptionItem.from(context.getString(R.string.prio_tier_title, getTierName(context, channel.tier)),
+                    optionItem -> {
+                        dialog.closeDialog();
+                        Utils.postDelayed(() -> showChannelDialog(context, channel), 500);
+                    }));
+        }
 
         if (service.isPrioVideo(video)) {
             dialog.appendSingleButton(UiOptionItem.from(context.getString(R.string.prio_manage_channels), optionItem -> showManageDialog(context)));
@@ -99,17 +113,32 @@ public class PrioMenu {
     }
 
     /**
-     * List of the prio channels (first = highest priority). Click on a channel to move or remove it.
+     * List of the prio channels grouped by tier. Click on a channel to change its tier or remove it.
      */
     public static void showManageDialog(Context context) {
         PrioService service = PrioService.instance(context);
         AppDialogPresenter dialog = AppDialogPresenter.instance(context);
 
-        List<Channel> channels = service.getData().getChannels();
+        List<Channel> channels = getSortedChannels(service);
 
-        for (int i = 0; i < channels.size(); i++) {
-            Channel channel = channels.get(i);
-            dialog.appendSingleButton(UiOptionItem.from((i + 1) + ". " + getName(channel), optionItem -> showChannelDialog(context, channel)));
+        // Fetch the missing names in the background
+        for (Channel channel : channels) {
+            if (!hasName(channel)) {
+                service.sync(true);
+                break;
+            }
+        }
+
+        if (!channels.isEmpty()) {
+            dialog.appendSingleButton(UiOptionItem.from(context.getString(R.string.prio_edit_on_phone), optionItem -> {
+                // Keep the dialog activity open. The QR dialog is attached to it.
+                PrioWebEditor.instance(context).show(dialog.getContext(), () -> reopenManageDialog(context, dialog));
+            }));
+        }
+
+        for (Channel channel : channels) {
+            dialog.appendSingleButton(UiOptionItem.from(getTierName(context, channel.tier) + " · " + getName(channel),
+                    optionItem -> showChannelDialog(context, channel)));
         }
 
         if (channels.isEmpty()) {
@@ -121,24 +150,37 @@ public class PrioMenu {
             }));
         }
 
+        dialog.appendSingleButton(UiOptionItem.from(context.getString(R.string.prio_add_subscriptions), optionItem -> addSubscriptions(context, dialog)));
+
         dialog.showDialog(context.getString(R.string.prio_manage_channels));
+    }
+
+    /**
+     * Highest tier first, inside a tier the user's order (sort is stable)
+     */
+    static List<Channel> getSortedChannels(PrioService service) {
+        List<Channel> channels = new ArrayList<>(service.getData().getChannels());
+        Collections.sort(channels, (o1, o2) -> o1.tier - o2.tier);
+        return channels;
     }
 
     private static void showChannelDialog(Context context, Channel channel) {
         PrioService service = PrioService.instance(context);
         AppDialogPresenter dialog = AppDialogPresenter.instance(context);
 
-        int index = service.getData().indexOf(channel.channelId);
-        int last = service.getData().getChannels().size() - 1;
-
-        if (index > 0) {
-            appendMoveButton(context, dialog, service, channel, R.string.prio_move_top, 0);
-            appendMoveButton(context, dialog, service, channel, R.string.prio_move_up, index - 1);
+        if (service.getData().getChannels().size() > 1) {
+            dialog.appendSingleButton(UiOptionItem.from(context.getString(R.string.prio_move), optionItem -> {
+                dialog.closeDialog();
+                Utils.postDelayed(() -> showMoveDialog(context, channel), 500);
+            }));
         }
 
-        if (index < last) {
-            appendMoveButton(context, dialog, service, channel, R.string.prio_move_down, index + 1);
-            appendMoveButton(context, dialog, service, channel, R.string.prio_move_bottom, last);
+        for (int tier : Channel.TIERS) {
+            String title = context.getString(R.string.prio_tier_title, getTierName(context, tier));
+            dialog.appendSingleButton(UiOptionItem.from(channel.tier == tier ? title + "  ✓" : title, optionItem -> {
+                service.setTier(channel.channelId, tier);
+                reopenManageDialog(context, dialog);
+            }));
         }
 
         dialog.appendSingleButton(UiOptionItem.from(context.getString(R.string.prio_remove_channel), optionItem -> {
@@ -146,25 +188,77 @@ public class PrioMenu {
             reopenManageDialog(context, dialog);
         }));
 
-        dialog.showDialog((index + 1) + ". " + getName(channel));
-    }
-
-    private static void appendMoveButton(Context context, AppDialogPresenter dialog, PrioService service, Channel channel, int titleResId, int newIndex) {
-        dialog.appendSingleButton(UiOptionItem.from(context.getString(titleResId), optionItem -> {
-            service.moveChannel(channel.channelId, newIndex);
-            reopenManageDialog(context, dialog);
-        }));
+        dialog.showDialog(getName(channel));
     }
 
     /**
-     * Show the list with the new order. Wait until the old dialog is gone.
+     * Remote friendly sorting: the list starts at the channel's position. Navigate up/down to the new position and press OK.
+     */
+    private static void showMoveDialog(Context context, Channel channel) {
+        PrioService service = PrioService.instance(context);
+        AppDialogPresenter dialog = AppDialogPresenter.instance(context);
+
+        List<OptionItem> items = new ArrayList<>();
+
+        for (Channel item : getSortedChannels(service)) {
+            boolean isCurrent = item.channelId.equals(channel.channelId);
+            String title = getTierName(context, item.tier) + " \u00B7 " + getName(item);
+            items.add(UiOptionItem.from(isCurrent ? "\u25B6 " + title : title, optionItem -> {
+                if (optionItem.isSelected() && !isCurrent) {
+                    service.moveChannel(channel.channelId, item.channelId);
+                }
+                reopenManageDialog(context, dialog);
+            }, isCurrent));
+        }
+
+        String title = context.getString(R.string.prio_move_title, getName(channel));
+        dialog.appendRadioCategory(title, items);
+        dialog.showDialog(title);
+    }
+
+    static String getTierName(Context context, int tier) {
+        switch (tier) {
+            case Channel.TIER_HIGH:
+                return context.getString(R.string.prio_tier_high);
+            case Channel.TIER_LOW:
+                return context.getString(R.string.prio_tier_low);
+            default:
+                return context.getString(R.string.prio_tier_normal);
+        }
+    }
+
+    private static void addSubscriptions(Context context, AppDialogPresenter dialog) {
+        dialog.closeDialog();
+        MessageHelpers.showMessage(context, R.string.wait_data_loading);
+
+        MediaServiceManager.instance().loadSubscribedChannels(group -> {
+            List<MediaItem> items = group != null ? group.getMediaItems() : null;
+
+            if (items == null || items.isEmpty()) {
+                MessageHelpers.showMessage(context, R.string.prio_no_subscriptions);
+                return;
+            }
+
+            PrioService.instance(context).addChannels(items, added -> {
+                MessageHelpers.showMessage(context, context.getString(R.string.prio_subscriptions_added, added));
+                showManageDialog(context);
+            });
+        });
+    }
+
+    /**
+     * Show the updated list. Wait until the old dialog is gone.
      */
     private static void reopenManageDialog(Context context, AppDialogPresenter dialog) {
         dialog.closeDialog();
         Utils.postDelayed(() -> showManageDialog(context), 500);
     }
 
-    private static String getName(Channel channel) {
-        return channel.name != null ? channel.name : channel.channelId;
+    private static boolean hasName(Channel channel) {
+        return channel.name != null && !channel.name.isEmpty() && !channel.name.equals(channel.channelId);
+    }
+
+    static String getName(Channel channel) {
+        return hasName(channel) ? channel.name : channel.channelId;
     }
 }

@@ -1,0 +1,314 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prio</title>
+<style>
+  :root { --bg: #f4f4f5; --card: #fff; --text: #18181b; --muted: #71717a; --line: #e4e4e7; --accent: #dc2626; --sel: #18181b; --selText: #fff; --drop: #fde2e2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f0f10; --card: #1c1c1f; --text: #f4f4f5; --muted: #a1a1aa; --line: #2e2e33; --sel: #f4f4f5; --selText: #18181b; --drop: #3a1616; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, -apple-system, Roboto, sans-serif; padding-bottom: 80px; }
+  body.dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 16px 8px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  input[type=search] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 15px; }
+  main { max-width: 720px; margin: 0 auto; padding: 8px 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 18px 4px 6px; }
+  .rows { min-height: 44px; border-radius: 12px; }
+  .rows:empty { border: 1px dashed var(--line); }
+  .row { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px 8px 4px; margin-bottom: 6px; }
+  .row.drag { position: fixed; z-index: 10; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.25); opacity: .95; }
+  .placeholder { height: 54px; margin-bottom: 6px; border-radius: 12px; background: var(--drop); border: 2px dashed var(--accent); }
+  .handle { width: 32px; height: 40px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 20px; cursor: grab; touch-action: none; }
+  .filtered .handle { visibility: hidden; }
+  .row img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; background: var(--line); }
+  .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row.removed .name { text-decoration: line-through; color: var(--muted); }
+  .row.removed .seg { opacity: .3; pointer-events: none; }
+  .row.changed { border-color: var(--text); }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+  .seg button { border: 0; background: transparent; color: var(--text); padding: 8px 10px; font-size: 13px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--sel); color: var(--selText); }
+  .del { border: 0; background: transparent; color: var(--muted); font-size: 20px; width: 32px; height: 32px; cursor: pointer; flex: none; }
+  .row.removed .del { color: var(--accent); }
+  footer { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 12px 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+  #status { color: var(--muted); font-size: 14px; }
+  #save { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 12px 22px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  #save:disabled { opacity: .4; cursor: default; }
+  @media (max-width: 520px) {
+    .row { flex-wrap: wrap; }
+    .seg { order: 3; width: calc(100% - 88px); margin-left: 88px; }
+    .seg button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Prio</h1>
+  <input type="search" id="search">
+</header>
+<main id="list"></main>
+<footer>
+  <span id="status"></span>
+  <button id="save" disabled></button>
+</footer>
+<script>
+  var token = new URLSearchParams(location.search).get('token');
+  var api = '/api/channels?token=' + encodeURIComponent(token);
+  var data = null;     // server response
+  var items = [];      // [{id, name, img, tier, removed}] in the current order
+  var original = {};   // id -> {index, tier}
+
+  function load(json) {
+    data = json;
+    items = json.channels.map(function (ch) { return { id: ch.id, name: ch.name, img: ch.img, tier: ch.tier, removed: false }; });
+    original = {};
+    items.forEach(function (it, i) { original[it.id] = { index: i, tier: it.tier }; });
+    document.getElementById('title').textContent = json.title;
+    document.title = json.title;
+    document.getElementById('search').placeholder = json.labels.search;
+    document.getElementById('save').textContent = json.labels.save;
+    render();
+  }
+
+  // Keep items grouped by tier (same order as on the TV)
+  function normalize() {
+    var result = [];
+    data.tiers.forEach(function (t) {
+      items.forEach(function (it) { if (it.tier === t.id) result.push(it); });
+    });
+    items = result;
+  }
+
+  function isChanged(it, index) {
+    var o = original[it.id];
+    return it.removed || o.tier !== it.tier || o.index !== index;
+  }
+
+  function changeCount() {
+    var count = 0;
+    items.forEach(function (it, i) { if (isChanged(it, i)) count++; });
+    return count;
+  }
+
+  function render() {
+    normalize();
+    var filter = document.getElementById('search').value.trim().toLowerCase();
+    var list = document.getElementById('list');
+    list.innerHTML = '';
+    list.className = filter ? 'filtered' : '';
+
+    data.tiers.forEach(function (tier) {
+      var section = document.createElement('section');
+      var h = document.createElement('h2');
+      var rows = document.createElement('div');
+      rows.className = 'rows';
+      rows.dataset.tier = tier.id;
+      var count = 0;
+
+      items.forEach(function (it, index) {
+        if (it.tier !== tier.id) return;
+        count++;
+        if (filter && it.name.toLowerCase().indexOf(filter) === -1) return;
+        rows.appendChild(createRow(it, index));
+      });
+
+      h.textContent = tier.name + ' (' + count + ')';
+      section.appendChild(h);
+      section.appendChild(rows);
+      list.appendChild(section);
+    });
+
+    var changes = changeCount();
+    document.getElementById('save').disabled = changes === 0;
+    document.getElementById('status').textContent = changes ? data.labels.changes.replace('%d', changes) : data.labels.channels.replace('%d', items.length);
+  }
+
+  function createRow(it, index) {
+    var row = document.createElement('div');
+    row.className = 'row' + (it.removed ? ' removed' : '') + (isChanged(it, index) ? ' changed' : '');
+    row.dataset.id = it.id;
+
+    var handle = document.createElement('div');
+    handle.className = 'handle';
+    handle.innerHTML = '&#9776;';
+    handle.addEventListener('pointerdown', function (e) { startDrag(e, row); });
+    row.appendChild(handle);
+
+    var img = document.createElement('img');
+    if (it.img) img.src = it.img;
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    row.appendChild(img);
+
+    var name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = it.name;
+    row.appendChild(name);
+
+    var seg = document.createElement('div');
+    seg.className = 'seg';
+    data.tiers.forEach(function (t) {
+      var b = document.createElement('button');
+      b.textContent = t.name;
+      if (t.id === it.tier) b.className = 'on';
+      b.onclick = function () {
+        if (it.tier === t.id) return;
+        // New tier: append to its end
+        items.splice(items.indexOf(it), 1);
+        it.tier = t.id;
+        items.push(it);
+        render();
+      };
+      seg.appendChild(b);
+    });
+    row.appendChild(seg);
+
+    var del = document.createElement('button');
+    del.className = 'del';
+    del.innerHTML = it.removed ? '&#8634;' : '&times;';
+    del.onclick = function () { it.removed = !it.removed; render(); };
+    row.appendChild(del);
+
+    return row;
+  }
+
+  // region Drag & drop (pointer events: works with mouse and touch)
+
+  var drag = null;
+
+  function startDrag(e, row) {
+    if (document.getElementById('search').value.trim()) return;
+    e.preventDefault();
+
+    var rect = row.getBoundingClientRect();
+    var placeholder = document.createElement('div');
+    placeholder.className = 'placeholder';
+    placeholder.style.height = rect.height + 'px';
+    row.parentNode.insertBefore(placeholder, row);
+
+    row.classList.add('drag');
+    row.style.width = rect.width + 'px';
+    row.style.left = rect.left + 'px';
+    row.style.top = rect.top + 'px';
+    document.body.appendChild(row);
+    document.body.classList.add('dragging');
+
+    drag = { row: row, placeholder: placeholder, offsetY: e.clientY - rect.top, y: e.clientY, scroll: 0 };
+    drag.timer = setInterval(autoScroll, 16);
+
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('pointercancel', endDrag);
+  }
+
+  function onDragMove(e) {
+    if (!drag) return;
+    e.preventDefault();
+    drag.y = e.clientY;
+    drag.row.style.top = (e.clientY - drag.offsetY) + 'px';
+
+    var edge = 120;
+    drag.scroll = e.clientY < edge ? -12 : e.clientY > window.innerHeight - edge ? 12 : 0;
+
+    updatePlaceholder(e.clientX, e.clientY);
+  }
+
+  function updatePlaceholder(x, y) {
+    var target = document.elementFromPoint(x, y);
+    if (!target) return;
+
+    var row = target.closest('.row');
+    var rows = target.closest('.rows');
+    var section = target.closest('section');
+
+    if (row && row !== drag.row) {
+      var r = row.getBoundingClientRect();
+      row.parentNode.insertBefore(drag.placeholder, y < r.top + r.height / 2 ? row : row.nextSibling);
+    } else if (rows && !row) {
+      if (!target.classList.contains('placeholder')) rows.appendChild(drag.placeholder);
+    } else if (section && !rows) {
+      // Header: start of this tier
+      var container = section.querySelector('.rows');
+      container.insertBefore(drag.placeholder, container.firstChild);
+    }
+  }
+
+  function autoScroll() {
+    if (drag && drag.scroll) {
+      window.scrollBy(0, drag.scroll);
+      updatePlaceholder(window.innerWidth / 2, drag.y);
+    }
+  }
+
+  function endDrag() {
+    if (!drag) return;
+    clearInterval(drag.timer);
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', endDrag);
+    document.removeEventListener('pointercancel', endDrag);
+    document.body.classList.remove('dragging');
+
+    var id = drag.row.dataset.id;
+    var container = drag.placeholder.parentNode;
+    var tier = parseInt(container.dataset.tier, 10);
+    var next = drag.placeholder.nextSibling;
+    var nextId = next && next.dataset ? next.dataset.id : null;
+
+    drag.row.remove();
+    drag = null;
+
+    var it = find(id);
+    items.splice(items.indexOf(it), 1);
+    it.tier = tier;
+
+    if (nextId) {
+      items.splice(items.indexOf(find(nextId)), 0, it);
+    } else {
+      // End of the tier: after its last item
+      var last = -1;
+      items.forEach(function (x, i) { if (x.tier === tier) last = i; });
+      items.splice(last + 1, 0, it);
+    }
+
+    render();
+  }
+
+  function find(id) {
+    return items.filter(function (x) { return x.id === id; })[0];
+  }
+
+  // endregion
+
+  function save() {
+    var body = items
+      .filter(function (it) { return !it.removed; })
+      .map(function (it) { return { id: it.id, tier: it.tier }; });
+    var btn = document.getElementById('save');
+    btn.disabled = true;
+    fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (json) { load(json); document.getElementById('status').textContent = data.labels.saved; })
+      .catch(function (e) { btn.disabled = false; alert('Error: ' + e.message); });
+  }
+
+  document.getElementById('search').oninput = render;
+  document.getElementById('save').onclick = save;
+
+  window.addEventListener('beforeunload', function (e) {
+    if (data && changeCount()) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  if (token) {
+    fetch(api)
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(load)
+      .catch(function (e) { document.getElementById('list').textContent = 'Error: ' + e.message; });
+  }
+</script>
+</body>
+</html>
