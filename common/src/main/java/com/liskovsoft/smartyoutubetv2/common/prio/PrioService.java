@@ -358,8 +358,10 @@ public class PrioService {
         }
 
         long now = System.currentTimeMillis();
-        // First fetch after adding the channel: existing videos count as watched
-        int status = channel.initialized ? Entry.STATUS_OPEN : Entry.STATUS_WATCHED;
+        // Signed in: the watch progress comes from YouTube (resume overlay of the items)
+        boolean isSigned = YouTubeServiceManager.instance().getSignInService().isSigned();
+        // First fetch after adding the channel: existing videos count as watched (signed in: only the ones watched on YouTube)
+        int defaultStatus = channel.initialized || isSigned ? Entry.STATUS_OPEN : Entry.STATUS_WATCHED;
         List<MediaItem> items = group.getMediaItems();
 
         // Channel may have been added without a name (only the id was known)
@@ -376,10 +378,17 @@ public class PrioService {
             }
 
             String author = item.getAuthor() != null ? item.getAuthor() : channel.name;
+            boolean watchedOnYouTube = isSigned && item.getPercentWatched() >= WATCHED_PERCENT;
+            int status = watchedOnYouTube ? Entry.STATUS_WATCHED : defaultStatus;
 
             // List is sorted newest first. Lower position = newer.
             mData.putEntry(new Entry(item.getVideoId(), channelId, item.getTitle(), Helpers.toString(item.getSecondTitle()),
                     author, item.getCardImageUrl(), item.getBadgeText(), now - i, now, status));
+
+            // Known entry keeps its status in putEntry(). Take over the progress from other devices.
+            if (watchedOnYouTube) {
+                mData.setWatched(item.getVideoId(), true);
+            }
         }
 
         mData.setInitialized(channel);

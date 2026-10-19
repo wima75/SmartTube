@@ -6,10 +6,10 @@ Status: **umgesetzt** (Bausteine 0, 1, 3, 4, Wiedergabe-Logik, 6).
 
 ## Bedienung
 
-- **Kanal hinzufügen:** Kontextmenü (OK lange drücken) auf einem Video oder Kanal → „Zu Prio-Kanälen hinzufügen“. Neue Kanäle kommen ans Ende der Liste. Die beim Hinzufügen vorhandenen Videos gelten als gesehen, nur neue erscheinen.
+- **Kanal hinzufügen:** Kontextmenü (OK lange drücken) auf einem Video oder Kanal → „Zu Prio-Kanälen hinzufügen“. Neue Kanäle kommen ans Ende der Liste. Ohne Login gelten die beim Hinzufügen vorhandenen Videos als gesehen, nur neue erscheinen. Mit Login gelten nur die auf YouTube zu mindestens 90 % angeschauten als gesehen.
 - **Bereich „Prio“** (ganz oben in der linken Leiste): offene Videos in Abspielreihenfolge. Wird beim Öffnen aktualisiert (höchstens alle 10 Minuten).
 - **Wiedergabe:** Nach dem Ende eines Prio-Videos startet automatisch das nächste (unabhängig vom Wiedergabemodus, die normale Warteschlange hat Vorrang). „Weiter“ überspringt das Video (gilt als gesehen).
-- **Gesehen:** ab 90 % angeschaut, am Ende oder beim Überspringen. Manuell über das Kontextmenü („Prio: als gesehen/ungesehen markieren“).
+- **Gesehen:** ab 90 % angeschaut, am Ende oder beim Überspringen. Mit Login auch, wenn YouTube das Video mit mindestens 90 % kennt (z. B. auf einem anderen Gerät geschaut), wird beim Abgleich übernommen. Manuell über das Kontextmenü („Prio: als gesehen/ungesehen markieren“).
 - **Reihenfolge ändern / entfernen:** Kontextmenü auf einem Prio-Video → „Prio-Kanäle verwalten“, oder Einstellungen → „Prio-Kanäle verwalten“. Kanal wählen → Ganz nach oben / Nach oben / Nach unten / Ganz nach unten / Entfernen.
 
 ## Umsetzung
