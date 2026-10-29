@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
@@ -129,7 +130,7 @@ public class DialServer {
             while (mRunning) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 mSsdpSocket.receive(packet);
-                String request = new String(packet.getData(), 0, packet.getLength(), StandardCharsets.UTF_8);
+                String request = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
                 if (!request.startsWith("M-SEARCH")) {
                     continue;
                 }
@@ -148,7 +149,7 @@ public class DialServer {
         }
     }
 
-    private void answerSearch(InetAddress address, int port) {
+    private void answerSearch(InetAddress address, int port) throws UnsupportedEncodingException {
         String ip = getLocalIp();
         if (ip == null) {
             return;
@@ -162,7 +163,7 @@ public class DialServer {
                 "USN: uuid:" + mUdn + "::" + DIAL_ST + "\r\n" +
                 "BOOTID.UPNP.ORG: 1\r\n" +
                 "\r\n";
-        byte[] data = response.getBytes(StandardCharsets.UTF_8);
+        byte[] data = response.getBytes("UTF-8");
         try (DatagramSocket socket = new DatagramSocket()) {
             socket.send(new DatagramPacket(data, data.length, address, port));
         } catch (IOException e) {
@@ -195,7 +196,7 @@ public class DialServer {
         try (Socket socket = client) {
             socket.setSoTimeout(10_000);
             InputStream in = socket.getInputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in, "UTF-8"));
             String requestLine = reader.readLine();
             if (requestLine == null) {
                 return;
@@ -295,7 +296,7 @@ public class DialServer {
     }
 
     private static void respond(OutputStream out, String status, String contentType, String body, Map<String, String> headers) throws IOException {
-        byte[] data = body != null ? body.getBytes(StandardCharsets.UTF_8) : new byte[0];
+        byte[] data = body != null ? body.getBytes("UTF-8") : new byte[0];
         StringBuilder head = new StringBuilder("HTTP/1.1 ").append(status).append("\r\n");
         if (headers != null) {
             for (Map.Entry<String, String> header : headers.entrySet()) {
@@ -307,7 +308,7 @@ public class DialServer {
         }
         head.append("Content-Length: ").append(data.length).append("\r\n");
         head.append("Connection: close\r\n\r\n");
-        out.write(head.toString().getBytes(StandardCharsets.UTF_8));
+        out.write(head.toString().getBytes("UTF-8"));
         out.write(data);
         out.flush();
     }
