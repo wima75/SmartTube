@@ -528,7 +528,7 @@ public class VideoLoaderController extends BasePlayerController {
     }
 
     private boolean preferSabrLive(MediaItemFormatInfo formatInfo) {
-        return getPlayerTweaksData().isSabrLiveEnabled() && formatInfo.isLive() && formatInfo.containsSabrFormats();
+        return getMediaServiceData().isSabrLiveEnabled() && formatInfo.isLive() && formatInfo.containsSabrFormats();
     }
 
     private boolean acceptDashLive(MediaItemFormatInfo formatInfo) {
